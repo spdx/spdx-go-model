@@ -1,0 +1,39 @@
+#! /bin/sh
+#
+# SPDX-License-Identifier: Apache-2.0
+
+set -eu
+
+SPDX_VERSIONS="3.0.1"
+SHACL2CODE_VERSION="0.0.20"
+
+THIS_DIR="$(dirname "$0")"
+VENV_DIR="$(mktemp -d)"
+
+cd $THIS_DIR
+
+# Install shacl2code in a virtual environment
+python3 -m venv "$VENV_DIR"
+"$VENV_DIR/bin/pip" install -q "shacl2code==$SHACL2CODE_VERSION"
+SHACL2CODE="$VENV_DIR/bin/shacl2code"
+
+# Remove existing go files in subdirectories
+find . -path './*/*.go' -delete
+
+for v in $SPDX_VERSIONS; do
+    MODNAME="spdx_v$(echo "$v" | sed 's/[^a-zA-Z0-9_]/_/g')"
+    rm -rf "$MODNAME"
+    mkdir -p "$MODNAME"
+
+    "$SHACL2CODE" generate \
+        --input https://spdx.org/rdf/$v/spdx-model.ttl \
+        --input https://spdx.org/rdf/$v/spdx-json-serialize-annotations.ttl \
+        --context https://spdx.org/rdf/$v/spdx-context.jsonld \
+        --license Apache-2.0 \
+        golang \
+        -o "$MODNAME" -p "$MODNAME"
+done
+
+go mod tidy
+
+rm -rf "$VENV_DIR"
